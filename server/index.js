@@ -1,18 +1,17 @@
 import mongoose from "mongoose";
 
-
 import bcrypt from "bcrypt";
 import cors from "cors";
 import express from "express";
-import multer from 'multer';
+import multer from "multer";
 import UserModel from "./Models/UserModel.js";
 import CarModel from "./Models/CarModel.js";
 import BookingModel from "./Models/BookModel.js";
-
+import * as ENV from "./config.js";
 const app = express();
 app.use(express.json());
 app.use(cors());
-app.use('/uploads', express.static('uploads'));
+app.use("/uploads", express.static("uploads"));
 
 //  Setup Multer for image upload
 const storage = multer.diskStorage({
@@ -27,13 +26,13 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 //  MongoDB Connection
-const connectString = "mongodb+srv://admin:admin@carrentalcluster.earyxfz.mongodb.net/CarRentalDB";
+const connectString = `mongodb+srv://${ENV.DB_USER}:${ENV.DB_PASSWORD}@${ENV.DB_CLUSTER}/${ENV.DB_NAME}?retryWrites=true&w=majority&appName=carReantalCluster`;
 mongoose.connect(connectString, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 });
 
-//  Register User 
+//  Register User
 app.post("/registerUser", async (req, res) => {
   try {
     const { name, email, address, phone, age, password, role } = req.body;
@@ -65,7 +64,8 @@ app.post("/login", async (req, res) => {
     if (!user) return res.status(500).json({ error: "User not found." });
 
     const passwordMatch = await bcrypt.compare(password, user.password);
-    if (!passwordMatch) return res.status(401).json({ error: "Authentication failed" });
+    if (!passwordMatch)
+      return res.status(401).json({ error: "Authentication failed" });
 
     // Include role in response
     res.status(200).json({
@@ -85,7 +85,15 @@ app.post("/login", async (req, res) => {
 //  Add Car
 app.post("/addCar", upload.single("imageFile"), async (req, res) => {
   try {
-    const { carName, carBrand, modelYear,plateNum, transmission, fuelType, pricePerDay } = req.body;
+    const {
+      carName,
+      carBrand,
+      modelYear,
+      plateNum,
+      transmission,
+      fuelType,
+      pricePerDay,
+    } = req.body;
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : "";
 
     const car = new CarModel({
@@ -127,7 +135,6 @@ app.delete("/deleteCar/:id", async (req, res) => {
   }
 });
 
-
 app.get("/getCar/:id", async (req, res) => {
   try {
     const car = await CarModel.findById(req.params.id);
@@ -136,7 +143,6 @@ app.get("/getCar/:id", async (req, res) => {
     res.status(500).json({ error: "Car not found" });
   }
 });
-
 
 app.put("/updateCar/:id", async (req, res) => {
   try {
@@ -151,7 +157,6 @@ app.put("/updateCar/:id", async (req, res) => {
   }
 });
 
-
 app.get("/getUsers", async (req, res) => {
   try {
     const users = await UserModel.find();
@@ -161,7 +166,6 @@ app.get("/getUsers", async (req, res) => {
   }
 });
 
-
 app.delete("/deleteUser/:id", async (req, res) => {
   try {
     await UserModel.findByIdAndDelete(req.params.id);
@@ -170,10 +174,6 @@ app.delete("/deleteUser/:id", async (req, res) => {
     res.status(500).json({ error: "Failed to delete user" });
   }
 });
-
-
-
-
 
 app.post("/bookCar", async (req, res) => {
   const { carId, pickupDate, returnDate } = req.body;
@@ -185,13 +185,15 @@ app.post("/bookCar", async (req, res) => {
       $or: [
         {
           pickupDate: { $lte: new Date(returnDate) },
-          returnDate: { $gte: new Date(pickupDate) }
-        }
-      ]
+          returnDate: { $gte: new Date(pickupDate) },
+        },
+      ],
     });
 
     if (overlapping) {
-      return res.status(400).json({ message: "Car is already booked for the selected dates." });
+      return res
+        .status(400)
+        .json({ message: "Car is already booked for the selected dates." });
     }
 
     const booking = new BookingModel(req.body);
@@ -203,8 +205,6 @@ app.post("/bookCar", async (req, res) => {
   }
 });
 
-
-
 app.get("/getBookings/:email", async (req, res) => {
   try {
     const bookings = await BookingModel.find({ userEmail: req.params.email });
@@ -214,8 +214,6 @@ app.get("/getBookings/:email", async (req, res) => {
     res.status(500).send("Failed to fetch bookings");
   }
 });
-
-
 
 app.put("/updateBookingStatus/:id", async (req, res) => {
   const { status } = req.body;
@@ -238,8 +236,6 @@ app.put("/updateBookingStatus/:id", async (req, res) => {
   }
 });
 
-
-
 app.get("/getAllBookings", async (req, res) => {
   try {
     const bookings = await BookingModel.find();
@@ -250,15 +246,15 @@ app.get("/getAllBookings", async (req, res) => {
   }
 });
 
-
-
 // Get Available Cars based on Pickup/Return Dates
 app.get("/getAvailableCars", async (req, res) => {
   try {
     const { pickup, return: returnDate } = req.query;
 
     if (!pickup || !returnDate) {
-      return res.status(400).json({ message: "Pickup and return dates are required." });
+      return res
+        .status(400)
+        .json({ message: "Pickup and return dates are required." });
     }
 
     // Find bookings overlapping with requested dates
@@ -266,16 +262,18 @@ app.get("/getAvailableCars", async (req, res) => {
       $or: [
         {
           pickupDate: { $lte: new Date(returnDate) },
-          returnDate: { $gte: new Date(pickup) }
-        }
-      ]
+          returnDate: { $gte: new Date(pickup) },
+        },
+      ],
     });
 
-    const bookedCarIds = overlappingBookings.map(booking => booking.carId.toString());
+    const bookedCarIds = overlappingBookings.map((booking) =>
+      booking.carId.toString()
+    );
 
     // Find cars NOT in bookedCarIds
     const availableCars = await CarModel.find({
-      _id: { $nin: bookedCarIds }
+      _id: { $nin: bookedCarIds },
     });
 
     res.json(availableCars);
@@ -284,9 +282,6 @@ app.get("/getAvailableCars", async (req, res) => {
     res.status(500).send("Failed to fetch available cars");
   }
 });
-
-
-
 
 app.listen(3001, () => {
   console.log("You are connected");
